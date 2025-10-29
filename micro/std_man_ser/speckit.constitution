@@ -1,0 +1,187 @@
+# Student Management Service — Project Principles (Speckit Constitution)
+
+## Purpose
+This document defines the core principles, rules, and measurable standards for the Student Management Service (SMS) microservice. It guides development, reviews, CI, and operations to ensure maintainability, reliability, performance, security, and excellent developer and user experience.
+
+---
+
+## Contract (short)
+- Inputs: HTTP/GRPC requests (JSON), authenticated where required.
+- Outputs: JSON responses with consistent envelope for success and error cases.
+- Success criteria: feature-complete endpoints with tests, 90%+ Jest coverage, documented in Swagger, CI checks passing before merge.
+- Error modes: validation errors (400), auth/permission (401/403), not found (404), server (500). All error responses MUST include machine-readable code and human message.
+
+---
+
+## 1. Code Quality
+- Architecture:
+  - Follow Clean Architecture / Hexagonal principles: separate layers (api/transport, application/use-cases, domain, infrastructure, persistence).
+  - No direct DB access from HTTP handlers; use application services/ports.
+- Naming and style:
+  - Use descriptive names; prefer intent-revealing identifiers over abbreviations.
+  - Follow the project's existing styleguide; run auto-formatter and linter on save/CI.
+- Principles:
+  - Adhere to SOLID (single responsibility, open/closed, Liskov, interface segregation, dependency inversion).
+  - Keep functions short (< 60 lines recommended), prefer composition over inheritance.
+- Review and enforcement:
+  - PRs must include an architecture note when adding/modifying core flows.
+  - Code owners to review for architectural regressions.
+
+---
+
+## 2. Testing Standards (Jest)
+- Required tests:
+  - Unit tests for domain logic and small components.
+  - Integration tests for service-layer interactions with DB (use test DB or transaction rollbacks).
+  - End-to-end (E2E) tests for critical user flows (create student, enroll, update profile, delete) running against a disposable environment.
+- Coverage:
+  - Minimum 90% line coverage across the repository. Coverage thresholds are enforced in CI.
+- Test quality:
+  - Tests must be deterministic and fast: prefer in-memory DBs or lightweight test containers.
+  - Use mocking for external services and focus E2E for high-level flows only.
+- Fixtures:
+  - Maintain small, documented fixtures and factories for test data.
+- Examples and tooling:
+  - Use Jest with explicit setup/teardown scripts.
+  - Include example commands in README for running unit, integration, and E2E tests.
+
+---
+
+## 3. User Experience (APIs)
+- Response envelope (JSON):
+  - Success: { "ok": true, "data": <object>, "meta": { ... } }
+  - Error:   { "ok": false, "error": { "code": "string_key", "message": "Human readable", "details": { /* optional */ } } }
+- Consistency:
+  - All endpoints MUST return the envelope above.
+  - Use appropriate HTTP status codes (200, 201, 204, 400, 401, 403, 404, 422, 500).
+- Error handling:
+  - Validate inputs at the edge and return structured validation errors (error.code = "validation.failed").
+  - Log internal errors with correlation IDs but return friendly messages to clients.
+  - Use correlation/request IDs returned in responses for support/debug.
+- API discoverability:
+  - Keep parameter names and body schemas stable; follow semver for breaking changes.
+
+---
+
+## 4. Performance
+- Targets:
+  - Typical (non-batch) API queries should respond under 200ms p95 in normal operating conditions.
+- DB optimization:
+  - Prefer indexed queries and avoid N+1; use joins or batch queries via repository layer.
+  - Write query performance tests for all heavy queries.
+- Caching:
+  - Cache repeated read-heavy endpoints (e.g., student profiles, commonly-read lists) with TTLs; invalidate on write.
+  - Use an external cache (Redis) via the infrastructure layer and abstract cache via interface for testability.
+- Monitoring:
+  - Emit metrics (latency, DB durations, cache hit/miss) and set alert thresholds for p95 > 200ms.
+- Load considerations:
+  - For large result sets, use pagination and streaming where appropriate.
+
+---
+
+## 5. Security
+- Standards:
+  - Follow OWASP Top 10 guidance and relevant best practices.
+  - Threat model the service for student-data confidentiality, integrity, and availability.
+- Input validation:
+  - Validate and sanitize all inputs; never trust client-side data.
+- Data protection:
+  - Protect sensitive PII (student IDs, national IDs, personal contacts) at rest and in transit.
+  - At rest: use field-level encryption for highly sensitive fields and ensure DB encryption-at-rest is enabled.
+  - In transit: enforce TLS for all external communications.
+- Access control:
+  - Implement RBAC with least privilege for service endpoints.
+  - Log and audit privileged actions (create/delete/modify student records).
+- Secrets handling:
+  - Store keys/secrets in a secret manager (not in repo). Rotate keys periodically.
+- Dependencies:
+  - Keep dependencies up-to-date and run automated security scans (Snyk/Dependabot or similar).
+
+---
+
+## 6. Documentation
+- API docs:
+  - Maintain up-to-date Swagger/OpenAPI spec for all public endpoints.
+  - The Swagger UI should be available in staging and describe request/response shapes and example payloads.
+- README:
+  - Root `micro/std_man_ser/README.md` should include quick start, how to run tests, how to run E2E, environment variables, and links to Swagger.
+- Design notes:
+  - For non-trivial flows, add short architecture/sequence diagrams or MD files under `docs/`.
+- Changelog:
+  - Add a short changelog for public API changes (breaking vs non-breaking) and migration notes.
+
+---
+
+## 7. CI/CD
+- Gates (required before merge to `main`):
+  - Linting passes (eslint / prettier or language equivalent).
+  - All tests pass and coverage thresholds satisfied (>=90%).
+  - Type-checking passes (TypeScript), or static analysis for other languages.
+  - Security scan (Snyk/OSS) runs and critical findings addressed or triaged.
+- Automation:
+  - Use GitHub Actions (or the org standard) to run the above on PRs.
+  - Optionally run slower E2E pipelines on PR label or branch (not for every commit).
+- Deployment:
+  - CD pipeline should deploy to staging automatically when main branch updates and require manual approval for production.
+
+---
+
+## Enforcement & Measurement
+- Enforcement:
+  - CI enforces lint / tests / coverage / type checks.
+  - Pull request templates must include checklist items: testing, docs, security review if required.
+  - Code owners review sensitive changes (DB schema, encryption, auth flows).
+- Metrics and telemetry:
+  - Track test coverage reports, CI pass rates, API latencies, DB slow queries, and security scan trends.
+- Audits:
+  - Quarterly architecture/security review and at least monthly dependency/security scans.
+
+---
+
+## Examples & Templates
+- Error response example:
+  {
+    "ok": false,
+    "error": {
+      "code": "student.not_found",
+      "message": "Student with id '123' was not found",
+      "details": { "studentId": "123" }
+    }
+  }
+
+- Success example (single student):
+  {
+    "ok": true,
+    "data": {
+      "id": "123",
+      "name": "Alex Example",
+      "email": "alex@example.edu"
+    },
+    "meta": {}
+  }
+
+- CI snippet (high-level):
+  - job: lint
+  - job: test (unit + integration)
+    - run coverage and fail if < 90%
+  - job: e2e (optional / gated)
+  - job: security-scan
+
+---
+
+## Edge cases & notes
+- Offline/fallback: design for transient DB/cache outages and return meaningful degraded responses where possible.
+- Large imports/bulk operations: treat these as background jobs; provide job status endpoints.
+- Data migrations: use versioned, reversible migrations and test them against a copy of production schema.
+
+---
+
+## Next steps (recommended)
+1. Commit this file to the repo (done).
+2. Add coverage and CI gating configuration (GitHub Actions) to enforce lint/test/type checks.
+3. Create `micro/std_man_ser/README.md` linking to this constitution and providing run/test commands.
+4. Wire Swagger generation into the build or CI so API docs stay current.
+
+---
+
+Document created by team convention. Keep this file maintained—update when policies or targets change.

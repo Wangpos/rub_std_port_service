@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model College {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique
+  departments Department[]
+  programs    Program[]
+}
+
+model Department {
+  id        Int      @id @default(autoincrement())
+  name      String
+  college   College  @relation(fields: [collegeId], references: [id])
+  collegeId Int
+  programs  Program[]
+
+  @@unique([name, collegeId])
+}
+
+model Program {
+  id           Int          @id @default(autoincrement())
+  name         String
+  department   Department   @relation(fields: [departmentId], references: [id])
+  departmentId Int
+  college      College      @relation(fields: [collegeId], references: [id])
+  collegeId    Int
+  students     Student[]
+
+  @@unique([name, departmentId])
+}
+
+model Student {
+  id             Int      @id @default(autoincrement())
+  studentNumber  String   @unique
+  firstName      String
+  lastName       String
+  email          String   @unique
+  dob            DateTime?
+  enrollmentYear Int
+  program        Program  @relation(fields: [programId], references: [id])
+  programId      Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([programId])
+  @@index([enrollmentYear])
+}
