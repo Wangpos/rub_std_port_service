@@ -10,6 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev --name init",
     "postinstall": "prisma generate",
+    "seed": "node prisma/seed.js",
     "test": "jest --coverage",
     "lint": "eslint . --ext .ts,.js"
   },
